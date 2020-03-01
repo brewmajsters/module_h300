@@ -5,6 +5,7 @@
 #include <FW_updater.hpp>
 #include <MQTT_client.hpp>
 #include <MD5.hpp>
+#include <H300.hpp>
 
 static const char* ssid     = "ssid";
 static const char* password = "password";
