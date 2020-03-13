@@ -13,8 +13,8 @@
 /// CONSTANT DEFINITION
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr char* const wifi_ssid     = "Wifina";
-static constexpr char* const wifi_password = "martinko";
+static constexpr char* const wifi_ssid     = "SSID";
+static constexpr char* const wifi_password = "PASSWORD";
 
 static constexpr char* const module_id   = "DUMMY_ID";
 static constexpr char* const module_type = "VFD_H300";
