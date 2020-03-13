@@ -7,35 +7,51 @@
 #include <MD5.hpp>
 #include <H300.hpp>
 
-static const char* ssid     = "ssid";
-static const char* password = "password";
+// #define DEBUG Serial.println(message);
 
-static const char* module_id   = "DUMMY_ID";
-static const char* module_type = "DUMMY_TYPE";
+////////////////////////////////////////////////////////////////////////////////
+/// CONSTANT DEFINITION
+////////////////////////////////////////////////////////////////////////////////
 
-static const uint32_t loop_delay = 10;
+static constexpr char* const wifi_ssid     = "Wifina";
+static constexpr char* const wifi_password = "martinko";
+
+static constexpr char* const module_id   = "DUMMY_ID";
+static constexpr char* const module_type = "VFD_H300";
+
+static constexpr uint32_t loop_delay_ms = 10;
+
+static constexpr uint16_t fw_update_port = 5000;
+
+////////////////////////////////////////////////////////////////////////////////
+/// GLOBAL OBJECTS
+////////////////////////////////////////////////////////////////////////////////
 
 static FW_updater  *fw_updater = nullptr;
 static MQTT_client *mqtt_client = nullptr;
 
-void resolve_mqtt(String& topic, String& payload);
+static std::vector<H300> devices;
 
-void setup(){
+static void resolve_mqtt(String& topic, String& payload);
+
+////////////////////////////////////////////////////////////////////////////////
+/// SETUP
+////////////////////////////////////////////////////////////////////////////////
+
+void setup() {
+
   Serial.begin(115200);
   delay(10);
 
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED){
+  WiFi.begin(wifi_ssid, wifi_password);
+  while (WiFi.status() != WL_CONNECTED)
     delay(500);
-  }
 
-  char* gateway_ip = nullptr;
-  IPAddress gw = WiFi.gatewayIP();
-  asprintf(&gateway_ip, "%d.%d.%d.%d", gw[0], gw[1], gw[2], gw[3]);
+  const String gateway_ip = WiFi.gatewayIP().toString();
 
-  fw_updater = new FW_updater(gateway_ip, 5000);
+  fw_updater = new FW_updater(gateway_ip.c_str(), fw_update_port);
 
-  mqtt_client = new MQTT_client(gateway_ip);
+  mqtt_client = new MQTT_client("192.168.1.65");
   mqtt_client->set_mqtt_params(module_id, module_type, resolve_mqtt);
   mqtt_client->connect();
   mqtt_client->publish_module_id();
@@ -43,86 +59,138 @@ void setup(){
   mqtt_client->subscribe((std::string(module_id) + "/SET_CONFIG").c_str());
   mqtt_client->subscribe((std::string(module_id) + "/SET_VALUE").c_str());
   mqtt_client->subscribe((std::string(module_id) + "/UPDATE_FW").c_str());
-  mqtt_client->subscribe((std::string(module_id) + "/REQUEST").c_str());
+  mqtt_client->subscribe((std::string(module_id) + "/REQUEST").c_str());  
 }
 
-void loop(){
+////////////////////////////////////////////////////////////////////////////////
+/// LOOP
+////////////////////////////////////////////////////////////////////////////////
+
+void loop() {
+
   mqtt_client->mqtt_loop();
 
-  // DynamicJsonDocument json(512);
-  // JsonObject device_1_obj = json.createNestedObject("[DEVICE_ID]");
-  // device_1_obj["datapoint_code_1"] = 22.3;
-  // device_1_obj["datapoint_code_2"] = "string";
-  // device_1_obj["datapoint_code_3"] = true;
-  // JsonObject device_2_obj = json.createNestedObject("[DEVICE_ID]");
-  // device_2_obj["datapoint_code_1"] = 22.3;
-  // device_2_obj["datapoint_code_2"] = "string";
-  // device_2_obj["datapoint_code_3"] = true;
-  // mqtt_client->publish_value_update(json);
+  if (!devices.empty()) {
+    DynamicJsonDocument json(512);
 
-  delay(loop_delay);
+    for (H300& device : devices) {
+      if (device.decrease_counter()) {
+        JsonObject device_object = json.createNestedObject(device.device_uuid);
+
+        uint16_t speed = 0;
+        if (device.read_value(H300::speed_register, &speed)) {
+          device_object["SPEED"] = speed;
+        }
+        
+        uint16_t get_motion = 0;
+        if (device.read_value(H300::get_motion_register, &get_motion)) {
+          device_object["GET_MOTION"] = get_motion;
+        }
+
+        uint16_t state = 0;
+        if (device.read_value(H300::state_register, &state)) {
+          device_object["STATE"] = state;
+        }
+
+        uint16_t main_freq = 0;
+        if (device.read_value(H300::main_freq_register, &main_freq)) {
+          device_object["MAIN_FREQUENCY"] = main_freq;
+        }
+
+        uint16_t aux_freq = 0;
+        if (device.read_value(H300::aux_freq_register, &aux_freq)) {
+          device_object["AUX_FREQUENCY"] = aux_freq;
+        }
+      }    
+    }
+
+    if (!json.isNull()) {
+      mqtt_client->publish_value_update(json); 
+    }
+  }
+
+  delay(loop_delay_ms);
 }
 
-void resolve_mqtt(String& topic, String& payload){
+////////////////////////////////////////////////////////////////////////////////
+/// MQTT RESOLVER
+////////////////////////////////////////////////////////////////////////////////
+
+static void resolve_mqtt(String& topic, String& payload) {
+
   Serial.println("incoming: " + topic + " - " + payload);
 
   DynamicJsonDocument payload_json(256);
   DeserializationError json_err = deserializeJson(payload_json, payload);
 
   if (json_err) {
-    Serial.println("JSON error: code " + String(json_err.c_str()));
+    Serial.println("JSON error: " + String(json_err.c_str()));
     return;
   }
 
   if (topic.equals("ALL_MODULES") || topic.equals(String(module_id) + "/REQUEST")) {
     const char* request = payload_json["request"];
 
-    if (request != nullptr){
-      if (String(request) == "module_discovery"){
+    if (request != nullptr) {
+      if (String(request) == "module_discovery") {
         mqtt_client->publish_module_id();
-      } else if (String(request) == "shutdown"){
+      } else if (String(request) == "shutdown") {
         // TODO: CUSTOM SHUTDOWN ACTION
       } else if (String(request) == "init") {
         // TODO: CUSTOM INIT ACTION
       }
     }
-  } else if (topic.equals(String(module_id) + "/SET_CONFIG")){
+  } else if (topic.equals(String(module_id) + "/SET_CONFIG")) {
     JsonObject json_config = payload_json.as<JsonObject>();
+    std::vector<H300>().swap(devices);    
 
-    for (JsonPair pair : json_config) {
-      const char* device_id = pair.key().c_str();
-      const auto device_config = pair.value().as<JsonObject>();
+    for (const JsonPair pair : json_config) {
 
-      // TODO: CUSTOM DEVICE ADDRESS ASSIGNMENT (ACCORDING TO DATATYPE AND RANGE)
-      // E.G: const uint8_t address = device_config["address"];
-
+      const char* const device_uuid = pair.key().c_str();
+      const JsonObject device_config = pair.value().as<JsonObject>();
+      const uint8_t unit_id = device_config["address"];
       const uint16_t poll_rate = device_config["poll_rate"];
 
-      // TODO: CUSTOM DEVICE CREATION ACTION
+      devices.emplace_back(device_uuid, unit_id, (poll_rate * 1000) / loop_delay_ms);
     }
 
-    char* payload_cpy = strdup(payload.c_str());
-    unsigned char* md5_hash = MD5::make_hash(payload_cpy);
-    char* md5_str = MD5::make_digest(md5_hash, 16);
+    char* const payload_cpy = strdup(payload.c_str());
+    unsigned char* const md5_hash = MD5::make_hash(payload_cpy);
+    char* const md5_str = MD5::make_digest(md5_hash, 16);
     mqtt_client->publish_config_update(md5_str);
 
     free(payload_cpy);
     free(md5_hash);
     free(md5_str);
-  } else if (topic.equals(String(module_id) + "/SET_VALUE")){
-    const uint32_t device_id = payload_json["device_id"];
+  } else if (topic.equals(String(module_id) + "/SET_VALUE")) {
+
+    const char* device_uuid = payload_json["device_uuid"];
     const char* datapoint = payload_json["datapoint"];
-    // TODO: CUSTOM VALUE ASSIGNMENT (ACCORDING TO DATATYPE AND RANGE)
-    // E.G: const uint8_t value = payload_json["value"];
+    const uint16_t value = payload_json["value"];    
 
-    Serial.print("device_id: " + device_id);
+    Serial.print("device_id: " + String(device_uuid));
     Serial.print(" datapoint: " + String(datapoint));
-    // Serial.println(" value: " + String(value));
+    Serial.println(" value: " + String(value));
 
-    // TODO: CUSTOM SET_VALUE ACTION
-  } else if (topic.equals(String(module_id) + "/UPDATE_FW")){
+    for (H300 device : devices) {
+      if (device.device_uuid == device_uuid) {
+        if (String(datapoint).equals("SPEED")) {
+          bool res = device.write_value(H300::speed_register, value);
+          if (!res) 
+            Serial.println("Error setting speed");
+        } else if (String(datapoint).equals("SET_MOTION")) {
+          bool res = device.write_value(H300::set_motion_register, value);
+          if (!res) 
+            Serial.println("Error setting motion");  
+        } else {
+          Serial.println("Error: unrecognized datapoint");
+        }
+
+        break;   
+      }   
+    }
+  } else if (topic.equals(String(module_id) + "/UPDATE_FW")) {
     const char* version = payload_json["version"];
-
     fw_updater->update(version);
   }
 }
