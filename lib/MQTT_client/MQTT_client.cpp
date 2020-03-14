@@ -1,85 +1,63 @@
 #include "MQTT_client.hpp"
 
-MQTT_client::MQTT_client(const char gw_ip[], const uint32_t port, const uint16_t buffer_size){
-  mqtt_client = new MQTTClient(buffer_size);
-  mqtt_client->begin(gw_ip, port, wifi_client);      
-  mqtt_client->setOptions(5, true, 1000);
+MQTT_client::MQTT_client(const char* gw_ip, const uint32_t port, const uint16_t buffer_size) 
+  : MQTTClient(buffer_size)
+{
+  begin(gw_ip, port, wifi_client);
+  setOptions(5, true, 1000);
 }
 
-void MQTT_client::set_mqtt_params(const char module_id[], const char module_type[], MQTTClientCallbackSimple callback){
-  this->module_id = strdup(module_id);
-  this->module_type = strdup(module_type);
+void MQTT_client::setup_mqtt(
+  const std::string& module_uuid, 
+  const std::string& module_type, 
+  MQTTClientCallbackSimple callback
+) {
+  this->module_uuid = module_uuid;
+  this->module_type = module_type;
   
   char lw_msg[256];
   StaticJsonDocument<JSON_OBJECT_SIZE(1) + 150> json;
-  json["module_uuid"] = module_id;
+  json["module_uuid"] = module_uuid;
   serializeJson(json, lw_msg);
 
-  mqtt_client->onMessage(callback);
-  mqtt_client->setWill("MODULE_DISCONNECT", lw_msg, false, 2);
-}
+  onMessage(callback);
+  setWill("MODULE_DISCONNECT", lw_msg, false, 2);
 
-void MQTT_client::connect(){
-  if (!strlen(module_id)){
-    throw std::runtime_error("Module ID not specified");
-  }
-  
-  while (!mqtt_client->connect(module_id, false)) {
+  while (!connect(module_uuid.c_str(), false)) {
     delay(1000);
   }
 }
 
-bool MQTT_client::subscribe(const char topic[], const uint8_t QOS){
-  return mqtt_client->subscribe(topic, QOS);
-}
-
-bool MQTT_client::publish(const char topic[], const char payload[], const uint8_t QOS){
-  return mqtt_client->publish(topic, payload, false, QOS);
-}
-
-bool MQTT_client::publish_module_id(const uint8_t QOS){
+bool MQTT_client::publish_module_id(const uint8_t QOS) {
   char msg[256];
   StaticJsonDocument<JSON_OBJECT_SIZE(2) + 256> json;
-  json["module_uuid"] = module_id;
+  json["module_uuid"] = module_uuid;
   json["module_type"] = module_type;
   serializeJson(json, msg);
 
-  bool res = publish("MODULE_ID", msg, QOS);
-  
-  return res;
+  return publish("MODULE_ID", msg, false, QOS);
 }
 
-bool MQTT_client::publish_config_update(const char config_hash[], const uint8_t QOS){
+bool MQTT_client::publish_config_update(const std::string& config_hash, const uint8_t QOS) {
   char msg[256];
   StaticJsonDocument<JSON_OBJECT_SIZE(2) + 256> json;
-  json["module_uuid"] = module_id;
+  json["module_uuid"] = module_uuid;
   json["config_hash"] = config_hash;
   serializeJson(json, msg);
 
-  bool res = publish("MODULE_CONFIG_UPDATE", msg, QOS);
-  
-  return res;
+  return publish("MODULE_CONFIG_UPDATE", msg, false, QOS);
 }
 
-bool MQTT_client::publish_value_update(DynamicJsonDocument values_json, const uint8_t QOS){
+bool MQTT_client::publish_value_update(DynamicJsonDocument values_json, const uint8_t QOS) {
   char msg[256];
   DynamicJsonDocument json(512);
-  json["module_uuid"] = module_id;
+  json["module_uuid"] = module_uuid;
   json["values"] = values_json;
   serializeJson(json, msg);
 
-  bool res = publish("VALUE_UPDATE", msg, QOS);
-  
-  return res;
+  return publish("VALUE_UPDATE", msg, false, QOS);
 }
 
-bool MQTT_client::mqtt_loop(){
-  return mqtt_client->loop();  
-}    
-
-MQTT_client::~MQTT_client(){
-  mqtt_client->disconnect(); 
-  free(mqtt_client);
-  free(module_id);
-  free(module_type);
+MQTT_client::~MQTT_client() {
+  disconnect();
 }
