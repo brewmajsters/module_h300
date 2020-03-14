@@ -5,13 +5,13 @@
 #include <FW_updater.hpp>
 #include <MQTT_client.hpp>
 #include <MD5.hpp>
-#include <H300.hpp>
+#include "H300.hpp"
 
-// debug mode, set to false if making a release
-#define DEBUG true
+// debug mode, set to 0 if making a release
+#define DEBUG 1
 
 // Logging macro used in debug mode
-#if DEBUG == true
+#if DEBUG == 1
   #define LOG(message) Serial.println(message);
 #else
   #define LOG(message)
@@ -22,13 +22,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #define WIFI_SSID    "SSID"
-#define WIFI_PASS    "PASSWORD"
+#define WIFI_PASS    "PASS"
 
 #define MODULE_UUID  "DUMMY_UUID"
 #define MODULE_TYPE  "VFD_H300"
 
-#define LOOP_DELAY_MS   10
-#define FW_UPDATE_PORT  5000
+#define LOOP_DELAY_MS   10u
+#define FW_UPDATE_PORT  5000u
 
 ////////////////////////////////////////////////////////////////////////////////
 /// GLOBAL OBJECTS
@@ -66,21 +66,20 @@ void setup() {
   fw_updater = new FW_updater(gateway_ip.c_str(), FW_UPDATE_PORT);
 
   // MQTT broker expected to run on GW
-  mqtt_client = new MQTT_client("192.168.1.65");
-  mqtt_client->set_mqtt_params(MODULE_UUID, MODULE_TYPE, resolve_mqtt);
-  mqtt_client->connect();
+  mqtt_client = new MQTT_client(gateway_ip.c_str());
+  mqtt_client->setup_mqtt(MODULE_UUID, MODULE_TYPE, resolve_mqtt);
   LOG("Connected to MQTT broker");
   mqtt_client->publish_module_id();
   LOG("Subscribing to ALL_MODULES ...");
   mqtt_client->subscribe("ALL_MODULES");
   LOG(String("Subscribing to ") + MODULE_UUID + "/SET_CONFIG ...");
-  mqtt_client->subscribe((std::string(MODULE_UUID) + "/SET_CONFIG").c_str());
+  mqtt_client->subscribe((std::string(MODULE_UUID) + "/SET_CONFIG").c_str(), 2u);
   LOG(String("Subscribing to ") + MODULE_UUID + "/SET_VALUE ...");
-  mqtt_client->subscribe((std::string(MODULE_UUID) + "/SET_VALUE").c_str());
+  mqtt_client->subscribe((std::string(MODULE_UUID) + "/SET_VALUE").c_str(), 2u);
   LOG(String("Subscribing to ") + MODULE_UUID + "/UPDATE_FW ...");
-  mqtt_client->subscribe((std::string(MODULE_UUID) + "/UPDATE_FW").c_str());
+  mqtt_client->subscribe((std::string(MODULE_UUID) + "/UPDATE_FW").c_str(), 2u);
   LOG(String("Subscribing to ") + MODULE_UUID + "/REQUEST ...");
-  mqtt_client->subscribe((std::string(MODULE_UUID) + "/REQUEST").c_str());  
+  mqtt_client->subscribe((std::string(MODULE_UUID) + "/REQUEST").c_str(), 2u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +88,7 @@ void setup() {
 
 void loop() {
 
-  mqtt_client->mqtt_loop();
+  mqtt_client->loop();
 
   // check if any device is present in config and standby mode is off
   if (!devices.empty() && !standby_mode) {
@@ -107,31 +106,31 @@ void loop() {
         if (device.read_value(H300::speed_register, &speed)) {
           device_object["SPEED"] = speed;
         }
-        LOG("\t SPEED: " + speed);
+        LOG(String("\tSPEED:\t") + speed);
         
         uint16_t get_motion = 0;
         if (device.read_value(H300::get_motion_register, &get_motion)) {
           device_object["GET_MOTION"] = get_motion;
         }
-        LOG("\t GET_MOTION: " + get_motion);
+        LOG(String("\tGET_MOTION:\t") + get_motion);
 
         uint16_t state = 0;
         if (device.read_value(H300::state_register, &state)) {
           device_object["STATE"] = state;
         }
-        LOG("\t STATE: " + state);
+        LOG(String("\tSTATE:\t") + state);
 
         uint16_t main_freq = 0;
         if (device.read_value(H300::main_freq_register, &main_freq)) {
           device_object["MAIN_FREQUENCY"] = main_freq;
         }
-        LOG("\t MAIN_FREQUENCY: " + main_freq);
+        LOG(String("\tMAIN_FREQUENCY:\t") + main_freq);
 
         uint16_t aux_freq = 0;
         if (device.read_value(H300::aux_freq_register, &aux_freq)) {
           device_object["AUX_FREQUENCY"] = aux_freq;
         }
-        LOG("\t AUX_FREQUENCY: " + aux_freq);
+        LOG(String("\tAUX_FREQUENCY:\t") + aux_freq);
       }    
     }
 
@@ -150,7 +149,7 @@ void loop() {
 
 static void resolve_mqtt(String& topic, String& payload) {
 
-  LOG("incoming: " + topic + " - " + payload);
+  LOG("Received message: " + topic + " - " + payload);
 
   DynamicJsonDocument payload_json(256);
   DeserializationError json_err = deserializeJson(payload_json, payload);
@@ -166,18 +165,21 @@ static void resolve_mqtt(String& topic, String& payload) {
     if (request != nullptr) {
       if (String(request) == "module_discovery") {
         mqtt_client->publish_module_id();
-      } else if (String(request) == "shutdown") {
+      } else if (String(request) == "stop") {
+        LOG("Switching to standby mode");
         // stop all motors using DC breaks and switch to standy mode
         for (H300& device : devices) {
           device.write_value(H300::set_motion_register, 6);
         }
         standby_mode = true;
-      } else if (String(request) == "init") {
-        // switch off standby mode
+      } else if (String(request) == "start") {
+        LOG("Switching to active mode");
+        // switch to active mode
         standby_mode = false;
       }
     }
   } else if (topic.equals(String(MODULE_UUID) + "/SET_CONFIG")) {
+    LOG("Deleting previous configuration");
     JsonObject json_config = payload_json.as<JsonObject>();
     std::vector<H300>().swap(devices); // delete previous configuration
 
@@ -190,25 +192,22 @@ static void resolve_mqtt(String& topic, String& payload) {
       const uint16_t poll_rate = device_config["poll_rate"];
 
       LOG("Creating device with parameters: ");
-      LOG(String("\t uuid:") + device_uuid);
-      LOG(String("\t unit_id:") + unit_id);
-      LOG(String("\t interval_rate:") + ((poll_rate * 1000) / LOOP_DELAY_MS));
+      LOG(String("\t uuid:\t") + device_uuid);
+      LOG(String("\t unit_id:\t") + unit_id);
+      LOG(String("\t interval_rate:\t") + ((poll_rate * 1000) / LOOP_DELAY_MS));
 
       devices.emplace_back(device_uuid, unit_id, (poll_rate * 1000) / LOOP_DELAY_MS);
     }
 
-    // calculate config MD5 chuecksum
-    char* const payload_cpy = strdup(payload.c_str());
-    unsigned char* const md5_hash = MD5::make_hash(payload_cpy);
-    char* const md5_str = MD5::make_digest(md5_hash, 16);
+    LOG(String("Actual device count: ") + devices.size());
 
-    LOG(String("Config MD5 checksum: ") + md5_str);
+    // calculate config MD5 chuecksum
+    std::string payload_cpy(payload.c_str());
+    const std::string& md5_str = MD5::make_digest(MD5::make_hash(&payload_cpy[0]), 16);
+
+    LOG(String("Config MD5 checksum: ") + md5_str.c_str());
 
     mqtt_client->publish_config_update(md5_str);
-
-    free(payload_cpy);
-    free(md5_hash);
-    free(md5_str);
   } else if (topic.equals(String(MODULE_UUID) + "/SET_VALUE")) {
 
     const char* device_uuid = payload_json["device_uuid"];
@@ -221,7 +220,7 @@ static void resolve_mqtt(String& topic, String& payload) {
     LOG(String("\t value: ") + value);
     
     // find the given device by its uuid and write the value according to datapoint
-    for (H300& device : devices) {
+    for (const H300& device : devices) {
       if (device.device_uuid == device_uuid) {
         if (String(datapoint).equals("SPEED")) {
           bool res = device.write_value(H300::speed_register, value);
