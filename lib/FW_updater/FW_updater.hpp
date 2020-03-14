@@ -1,5 +1,4 @@
-#ifndef FW_UPDATER_HPP
-#define FW_UPDATER_HPP
+#pragma once
 
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -14,5 +13,3 @@ class FW_updater{
     WiFiClient wifi_client;
     char* url = nullptr;
 };
-
-#endif
