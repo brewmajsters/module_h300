@@ -178,13 +178,13 @@ static void resolve_mqtt(String& topic, String& payload) {
         standby_mode = false;
       }
     }
-  } else if (topic.equals(String(MODULE_UUID) + "/SET_CONFIG")) {
-    LOG("Deleting previous configuration");
+  } else if (topic.equals(String(MODULE_UUID) + "/SET_CONFIG")) {    
     JsonObject json_config = payload_json.as<JsonObject>();
+    LOG("Deleting previous configuration");
     std::vector<H300>().swap(devices); // delete previous configuration
 
     // create devices according to received configuration
-    for (const JsonPair pair : json_config) { 
+    for (const JsonPair& pair : json_config) { 
 
       const char* const device_uuid = pair.key().c_str();
       const JsonObject device_config = pair.value().as<JsonObject>();

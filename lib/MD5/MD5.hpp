@@ -1,5 +1,4 @@
-#ifndef MD5_HPP
-#define MD5_HPP
+#pragma once
 
 #include "Arduino.h"
 
@@ -48,5 +47,3 @@ public:
 	static void MD5Final(unsigned char *result, void *ctxBuf);
 	static void MD5Update(void *ctxBuf, const void *data, size_t size);
 };
-
-#endif
