@@ -12,7 +12,7 @@ class MQTT_client : public MQTTClient {
     MQTT_client(const char* gw_ip, const uint32_t port = 1883, const uint16_t buffer_size = 256);
 
     void setup_mqtt(
-      const std::string& module_uuid, 
+      const std::string& module_mac, 
       const std::string& module_type, 
       MQTTClientCallbackSimple callback
     );
@@ -23,7 +23,7 @@ class MQTT_client : public MQTTClient {
     ~MQTT_client();
 
   private:
-    std::string module_uuid;
+    std::string module_mac;
     std::string module_type;
     WiFiClient wifi_client;
 };
