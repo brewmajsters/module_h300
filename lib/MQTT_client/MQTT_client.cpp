@@ -8,22 +8,22 @@ MQTT_client::MQTT_client(const char* gw_ip, const uint32_t port, const uint16_t 
 }
 
 void MQTT_client::setup_mqtt(
-  const std::string& module_uuid, 
+  const std::string& module_mac, 
   const std::string& module_type, 
   MQTTClientCallbackSimple callback
 ) {
-  this->module_uuid = module_uuid;
+  this->module_mac = module_mac;
   this->module_type = module_type;
   
   char lw_msg[256];
   StaticJsonDocument<JSON_OBJECT_SIZE(1) + 150> json;
-  json["module_uuid"] = module_uuid;
+  json["module_mac"] = module_mac;
   serializeJson(json, lw_msg);
 
   onMessage(callback);
   setWill("MODULE_DISCONNECT", lw_msg, false, 2);
 
-  while (!connect(module_uuid.c_str(), false)) {
+  while (!connect(module_mac.c_str(), false)) {
     delay(1000);
   }
 }
@@ -31,7 +31,7 @@ void MQTT_client::setup_mqtt(
 bool MQTT_client::publish_module_id(const uint8_t QOS) {
   char msg[256];
   StaticJsonDocument<JSON_OBJECT_SIZE(2) + 256> json;
-  json["module_uuid"] = module_uuid;
+  json["module_mac"] = module_mac;
   json["module_type"] = module_type;
   serializeJson(json, msg);
 
@@ -41,7 +41,7 @@ bool MQTT_client::publish_module_id(const uint8_t QOS) {
 bool MQTT_client::publish_config_update(const std::string& config_hash, const uint8_t QOS) {
   char msg[256];
   StaticJsonDocument<JSON_OBJECT_SIZE(2) + 256> json;
-  json["module_uuid"] = module_uuid;
+  json["module_mac"] = module_mac;
   json["config_hash"] = config_hash;
   serializeJson(json, msg);
 
@@ -51,7 +51,7 @@ bool MQTT_client::publish_config_update(const std::string& config_hash, const ui
 bool MQTT_client::publish_value_update(DynamicJsonDocument values_json, const uint8_t QOS) {
   char msg[256];
   DynamicJsonDocument json(512);
-  json["module_uuid"] = module_uuid;
+  json["module_mac"] = module_mac;
   json["values"] = values_json;
   serializeJson(json, msg);
 
