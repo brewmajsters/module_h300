@@ -23,42 +23,43 @@ H300::H300(const std::string device_uuid, const uint8_t unit_id, const uint32_t 
   node.postTransmission(post_transmission);
 }
 
-void H300::pre_transmission() {
+void H300::pre_transmission() 
+{
   digitalWrite(MAX485_RE_NEG, 1);
   digitalWrite(MAX485_DE, 1);
 }
 
-void H300::post_transmission() {
+void H300::post_transmission() 
+{
   digitalWrite(MAX485_RE_NEG, 0);
   digitalWrite(MAX485_DE, 0);
 }
 
 // Write value to holding register
-bool H300::write_value(const uint16_t register_addr, const uint16_t value) const {
-  const uint8_t result = node.writeSingleRegister(register_addr, value);
-
-  return result == node.ku8MBSuccess ? true : false;
+uint8_t H300::write_value(const uint16_t register_addr, const uint16_t value) const 
+{
+  return node.writeSingleRegister(register_addr, value);
 }
 
 // Read value from holding register
-bool H300::read_value(const uint16_t register_addr, uint16_t* const response) const {
+uint8_t H300::read_value(const uint16_t register_addr, uint16_t* const response) const 
+{
   const uint8_t result = node.readHoldingRegisters(register_addr, 1);
 
-  if (result != node.ku8MBSuccess) {
-    return false;
-  }
+  if (result == node.ku8MBSuccess)
+    *response = node.getResponseBuffer(0);
 
-  *response = node.getResponseBuffer(0);
-  return true;
+  return result;
 }
 
-bool H300::decrease_counter() {
+bool H300::decrease_counter() 
+{
   iteration_counter--;
 
   if (iteration_counter == 0) {
     iteration_counter = poll_rate;
     return true;
-  } else {
-    return false;
-  }
+  } 
+
+  return false;
 }

@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include <ModbusMaster.h>
 
-class H300 {
+class H300 
+{
   private:
     mutable ModbusMaster node;
 
@@ -29,7 +30,7 @@ class H300 {
     static constexpr uint16_t aux_freq_register = 0x1020;
 
     H300(const std::string device_uuid, const uint8_t unit_id, const uint32_t poll_rate);
-    bool write_value(const uint16_t register_addr, const uint16_t value) const;
-    bool read_value(const uint16_t register_addr, uint16_t* const response) const;
+    uint8_t write_value(const uint16_t register_addr, const uint16_t value) const;
+    uint8_t read_value(const uint16_t register_addr, uint16_t* const response) const;
     bool decrease_counter();
 };
