@@ -23,12 +23,12 @@ void MQTT_client::setup_mqtt(
   onMessage(callback);
   setWill("MODULE_DISCONNECT", lw_msg, false, 2);
 
-  while (!connect(module_mac.c_str(), false)) {
+  while (!connect(module_mac.c_str(), false)) 
     delay(1000);
-  }
 }
 
-bool MQTT_client::publish_module_id(const uint8_t QOS) {
+bool MQTT_client::publish_module_id(const uint8_t QOS) 
+{
   char msg[256];
   StaticJsonDocument<JSON_OBJECT_SIZE(2) + 256> json;
   json["module_mac"] = module_mac;
@@ -38,7 +38,8 @@ bool MQTT_client::publish_module_id(const uint8_t QOS) {
   return publish("MODULE_ID", msg, false, QOS);
 }
 
-bool MQTT_client::publish_config_update(const std::string& config_hash, const uint8_t QOS) {
+bool MQTT_client::publish_config_update(const std::string& config_hash, const uint8_t QOS) 
+{
   char msg[256];
   StaticJsonDocument<JSON_OBJECT_SIZE(2) + 256> json;
   json["module_mac"] = module_mac;
@@ -48,7 +49,8 @@ bool MQTT_client::publish_config_update(const std::string& config_hash, const ui
   return publish("MODULE_CONFIG_UPDATE", msg, false, QOS);
 }
 
-bool MQTT_client::publish_value_update(DynamicJsonDocument values_json, const uint8_t QOS) {
+bool MQTT_client::publish_value_update(DynamicJsonDocument values_json, const uint8_t QOS) 
+{
   char msg[256];
   DynamicJsonDocument json(512);
   json["module_mac"] = module_mac;
@@ -58,6 +60,27 @@ bool MQTT_client::publish_value_update(DynamicJsonDocument values_json, const ui
   return publish("VALUE_UPDATE", msg, false, QOS);
 }
 
-MQTT_client::~MQTT_client() {
+bool MQTT_client::publish_request_result(
+  const uint16_t sequence_number,
+  const bool result,
+  const std::string& details,
+  const uint8_t QOS
+) {
+  char msg[256];
+  DynamicJsonDocument json(512);
+  json["module_mac"] = module_mac;
+  json["sequence_number"] = sequence_number;
+  json["result"] = result ? "OK" : "ERROR";
+
+  if (!details.empty() && !result)
+    json["details"] = details;
+  
+  serializeJson(json, msg);
+
+  return publish("REQUEST_RESULT", msg, false, QOS);
+}
+
+MQTT_client::~MQTT_client() 
+{
   disconnect();
 }
