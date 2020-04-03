@@ -212,7 +212,8 @@ static void resolve_mqtt(String& topic, String& payload)
     std::vector<H300>().swap(devices); // delete previous configuration
 
     // create devices according to received configuration
-    for (const JsonPair pair : json_config) 
+
+    for (const JsonPair& pair : json_config) 
     { 
       const char* const device_uuid = pair.key().c_str();
       const JsonObject device_config = pair.value().as<JsonObject>();
