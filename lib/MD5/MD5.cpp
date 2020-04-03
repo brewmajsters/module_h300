@@ -1,11 +1,5 @@
 #include "MD5.hpp"
 
-MD5::MD5()
-{
-	//nothing
-	return;
-}
-
 char* MD5::make_digest(const unsigned char *digest, int len) /* {{{ */
 {
 	char * md5str = (char*) malloc(sizeof(char)*(len*2+1));

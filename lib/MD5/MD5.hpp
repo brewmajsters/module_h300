@@ -35,15 +35,13 @@ typedef struct {
 	MD5_u32plus block[16];
 } MD5_CTX;
 
-class MD5
+namespace MD5
 {
-public:
-	MD5();
-	static unsigned char* make_hash(char *arg);
-	static unsigned char* make_hash(char *arg,size_t size);
-	static char* make_digest(const unsigned char *digest, int len);
- 	static const void *body(void *ctxBuf, const void *data, size_t size);
-	static void MD5Init(void *ctxBuf);
-	static void MD5Final(unsigned char *result, void *ctxBuf);
-	static void MD5Update(void *ctxBuf, const void *data, size_t size);
+	unsigned char* make_hash(char *arg);
+	unsigned char* make_hash(char *arg,size_t size);
+	char* make_digest(const unsigned char *digest, int len);
+ 	const void *body(void *ctxBuf, const void *data, size_t size);
+	void MD5Init(void *ctxBuf);
+	void MD5Final(unsigned char *result, void *ctxBuf);
+	void MD5Update(void *ctxBuf, const void *data, size_t size);
 };
