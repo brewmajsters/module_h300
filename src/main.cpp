@@ -10,7 +10,7 @@
 #include "H300.hpp"
 
 // debug mode, set to 0 if making a release
-#define DEBUG 0
+#define DEBUG 1
 
 // Logging macro used in debug mode
 #if DEBUG == 1
@@ -35,7 +35,7 @@
 /// GLOBAL OBJECTS
 ////////////////////////////////////////////////////////////////////////////////
 
-static String module_mac;
+static String module_mac = WiFi.macAddress();
 
 static FW_updater  *fw_updater = nullptr;
 static MQTT_client *mqtt_client = nullptr;
@@ -52,12 +52,13 @@ static void resolve_mqtt(String& topic, String& payload);
 
 void setup() 
 {
-  #if DEBUG == true
+  #if DEBUG == 1
+    Serial.flush();
+    Serial.end();
+    delay(10);
     Serial.begin(115200);
   #endif
-  delay(10);
 
-  module_mac = WiFi.macAddress();
   LOG("Module MAC: " + module_mac);
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -68,11 +69,18 @@ void setup()
   const String gateway_ip = WiFi.gatewayIP().toString();
   LOG("GW IP address: " + gateway_ip);
 
+  if (fw_updater)
+    delete fw_updater;
+
   // firmware server expected to run on GW
   fw_updater = new FW_updater(gateway_ip.c_str(), FW_UPDATE_PORT);
-
+  
+  if (mqtt_client)
+    delete mqtt_client;
+  
   // MQTT broker expected to run on GW
   mqtt_client = new MQTT_client(gateway_ip.c_str());
+  LOG("Setting up MQTT client");
   mqtt_client->setup_mqtt(module_mac.c_str(), MODULE_TYPE, resolve_mqtt);
   LOG("Connected to MQTT broker");
   mqtt_client->publish_module_id();
@@ -94,7 +102,11 @@ void setup()
 
 void loop() 
 {
-  mqtt_client->loop();
+  if (!mqtt_client->loop())
+  {
+    LOG("Lost connection to MQTT broker, reconnecting...");
+    setup();
+  }
 
   // check if any device is present in config and standby mode is off
   if (devices.empty() || standby_mode) 
