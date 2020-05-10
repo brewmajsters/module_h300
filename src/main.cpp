@@ -127,23 +127,23 @@ void loop()
     JsonObject device_object = json.createNestedObject(device.device_uuid);
 
     uint16_t speed = 0;
-    if (device.read_value(H300::speed_register, &speed)) 
+    if (!device.read_value(H300::speed_register, &speed)) 
       device_object["SPEED"] = speed;
     
     uint16_t get_motion = 0;
-    if (device.read_value(H300::get_motion_register, &get_motion))
+    if (!device.read_value(H300::get_motion_register, &get_motion))
       device_object["GET_MOTION"] = get_motion;
 
     uint16_t state = 0;
-    if (device.read_value(H300::state_register, &state))
+    if (!device.read_value(H300::state_register, &state))
       device_object["STATE"] = state;
 
     uint16_t main_freq = 0;
-    if (device.read_value(H300::main_freq_register, &main_freq))
+    if (!device.read_value(H300::main_freq_register, &main_freq))
       device_object["MAIN_FREQUENCY"] = main_freq;
 
     uint16_t aux_freq = 0;
-    if (device.read_value(H300::aux_freq_register, &aux_freq))
+    if (!device.read_value(H300::aux_freq_register, &aux_freq))
       device_object["AUX_FREQUENCY"] = aux_freq;
     
     LOG(String("\tSPEED:\t") + speed);
