@@ -23,8 +23,8 @@
 /// CONSTANT DEFINITION
 ////////////////////////////////////////////////////////////////////////////////
 
-#define WIFI_SSID    "SSID"
-#define WIFI_PASS    "PASS"
+#define WIFI_SSID    "WIFI_SSID"
+#define WIFI_PASS    "WIFI_PASS"
 
 #define MODULE_TYPE  "VFD_H300"
 
@@ -66,6 +66,9 @@ void setup()
     delay(500);
   LOG("Connected to Wi-Fi AP");
 
+  const String local_ip = WiFi.localIP().toString();
+  LOG("IP address: " + local_ip);
+  
   const String gateway_ip = WiFi.gatewayIP().toString();
   LOG("GW IP address: " + gateway_ip);
 
@@ -122,35 +125,98 @@ void loop()
     if (!device.decrease_counter())
       continue;
           
-    LOG("Reading device: " + String(device.device_uuid.c_str()));
+    LOG("Reading device: " + String(device.device_id.c_str()));
 
-    JsonObject device_object = json.createNestedObject(device.device_uuid);
+    JsonObject device_object = json.createNestedObject(device.device_id);
 
     uint16_t speed = 0;
-    if (!device.read_value(H300::speed_register, &speed)) 
-      device_object["SPEED"] = speed;
-    
-    uint16_t get_motion = 0;
-    if (!device.read_value(H300::get_motion_register, &get_motion))
-      device_object["GET_MOTION"] = get_motion;
+    if (!device.read_value(H300::speed_register, &speed))
+    {
+      float speed_res = float(speed) / 10;
+      
+      device_object["SPEED"] = speed_res;
+      LOG(String("\tSPEED:\t") + speed_res);
+    }
 
     uint16_t state = 0;
     if (!device.read_value(H300::state_register, &state))
-      device_object["STATE"] = state;
+    {
+      String state_res;
 
-    uint16_t main_freq = 0;
-    if (!device.read_value(H300::main_freq_register, &main_freq))
-      device_object["MAIN_FREQUENCY"] = main_freq;
+      if (state == 0)
+        state_res = "OK";
+      else 
+	state_res = "ERROR " + state;
+      
+      device_object["STATE"] = state_res;
+      LOG(String("\tSTATE:\t") + state_res);
+    }
+  
+    uint16_t get_freq = 0;
+    if (!device.read_value(H300::get_freq_register, &get_freq))
+    {
+      float get_freq_res = float(get_freq) / 100;
+      
+      device_object["GET_FREQ"] = get_freq_res;
+      LOG(String("\tGET_FREQ:\t") + get_freq_res);
+    }
 
-    uint16_t aux_freq = 0;
-    if (!device.read_value(H300::aux_freq_register, &aux_freq))
-      device_object["AUX_FREQUENCY"] = aux_freq;
+    uint16_t set_freq = 0;
+    if (!device.read_value(H300::set_freq_register, &set_freq))
+    {
+      float set_freq_res = float(set_freq) / 100;
+      
+      device_object["SET_FREQ"] = set_freq_res;
+      LOG(String("\tSET_FREQ:\t") + set_freq_res);
+    }
+
+    uint16_t get_motion = 0;
+    if (!device.read_value(H300::get_motion_register, &get_motion))
+    {
+      String get_motion_res;
+
+      if (get_motion == 1)
+	get_motion_res = "FWD";
+      else if (get_motion == 2)
+	get_motion_res = "REV";
+      else if (get_motion == 3)
+	get_motion_res = "STOP";
+
+      device_object["GET_MOTION"] = get_motion_res;
+      LOG(String("\tGET_MOTION:\t") + get_motion_res);
+    }
+
+    uint16_t accel_time = 0;
+    if (!device.read_value(H300::accel_time_register, &accel_time))
+    {
+      device_object["ACCEL_TIME"] = accel_time;
+      LOG(String("\tACCEL_TIME:\t") + accel_time);
+    }
+
+    uint16_t decel_time = 0;
+    if (!device.read_value(H300::decel_time_register, &decel_time))
+    {
+      device_object["DECEL_TIME"] = decel_time;
+      LOG(String("\tDECEL_TIME:\t") + decel_time);
+    }
     
-    LOG(String("\tSPEED:\t") + speed);
-    LOG(String("\tGET_MOTION:\t") + get_motion);
-    LOG(String("\tSTATE:\t") + state);
-    LOG(String("\tMAIN_FREQUENCY:\t") + main_freq);
-    LOG(String("\tAUX_FREQUENCY:\t") + aux_freq);
+    uint16_t get_timer = 0;
+    if (!device.read_value(H300::get_timer_register, &get_timer))
+    {
+      float get_timer_res = float(get_timer) / 10;
+
+      device_object["GET_TIMER"] = get_timer_res;
+      LOG(String("\tGET_TIMER:\t") + get_timer_res);
+    }
+
+    uint16_t set_timer = 0;
+    if (!device.read_value(H300::set_timer_register, &set_timer))
+    {
+      float set_timer_res = float(set_timer) / 10;
+
+      device_object["SET_TIMER"] = set_timer_res;
+      LOG(String("\tSET_TIMER:\t") + set_timer_res);
+    }
   }
 
   // publish only if at least one device was read
@@ -227,17 +293,17 @@ static void resolve_mqtt(String& topic, String& payload)
 
     for (const JsonPair& pair : json_config) 
     { 
-      const char* const device_uuid = pair.key().c_str();
+      const char* const device_id = pair.key().c_str();
       const JsonObject device_config = pair.value().as<JsonObject>();
       const uint8_t unit_id = device_config["address"];
       const uint16_t poll_rate = device_config["poll_rate"];
 
       LOG("Creating device with parameters: ");
-      LOG(String("\t uuid:\t") + device_uuid);
+      LOG(String("\t id:\t") + device_id);
       LOG(String("\t unit_id:\t") + unit_id);
       LOG(String("\t interval_rate:\t") + ((poll_rate * 1000) / LOOP_DELAY_MS));
 
-      devices.emplace_back(device_uuid, unit_id, (poll_rate * 1000) / LOOP_DELAY_MS);
+      devices.emplace_back(device_id, unit_id, (poll_rate * 1000) / LOOP_DELAY_MS);
     }
 
     LOG(String("Actual device count: ") + devices.size());
@@ -252,30 +318,57 @@ static void resolve_mqtt(String& topic, String& payload)
   } 
   else if (topic.equals(module_mac + "/SET_VALUE")) 
   {
-    const char* device_uuid = payload_json["device_uuid"];
+    const char* device_id = payload_json["device_id"];
     const char* datapoint = payload_json["datapoint"];
-    const uint16_t value = payload_json["value"];    
+    const char* value = payload_json["value"];
     const uint16_t sequence_number = payload_json["sequence_number"];
 
     LOG("Setting value:");
-    LOG(String("\t device_uuid: ") + device_uuid);
+    LOG(String("\t device_id: ") + device_id);
     LOG(String("\t datapoint: ") + datapoint);
     LOG(String("\t value: ") + value);
     
-    // find the given device by its uuid and write the value according to datapoint
+    // find the given device by its id and write the value according to datapoint
     for (const H300& device : devices) 
     {
-      if (device.device_uuid == device_uuid) 
+      if (device.device_id == device_id) 
       {
-        uint8_t result;
+        uint8_t result = -1;
 
         if (String(datapoint).equals("SPEED")) 
         {
-          result = device.write_value(H300::speed_register, value);        
+          result = device.write_value(H300::speed_register, (uint16_t)(atof(value) * 10)); 
+        } 
+        else if (String(datapoint).equals("SET_FREQ")) 
+        {
+          result = device.write_value(H300::set_freq_register, (uint16_t)(atof(value) * 100));
         } 
         else if (String(datapoint).equals("SET_MOTION")) 
         {
-          result = device.write_value(H300::set_motion_register, value);
+	  if (strcmp(value, "FWD") == 0)
+	    result = device.write_value(H300::set_motion_register, 1);
+	  if (strcmp(value, "REV") == 0)
+	    result = device.write_value(H300::set_motion_register, 2);
+	  if (strcmp(value, "FWD_JOG") == 0)
+	    result = device.write_value(H300::set_motion_register, 3);
+	  if (strcmp(value, "REV_JOG") == 0)
+	    result = device.write_value(H300::set_motion_register, 4);
+	  if (strcmp(value, "STOP") == 0)
+	    result = device.write_value(H300::set_motion_register, 5);
+	  if (strcmp(value, "BREAK") == 0)
+	    result = device.write_value(H300::set_motion_register, 6);
+        } 
+        else if (String(datapoint).equals("ACCEL_TIME")) 
+        {
+          result = device.write_value(H300::accel_time_register, (uint16_t)atoi(value));
+        } 
+        else if (String(datapoint).equals("DECEL_TIME")) 
+        {
+          result = device.write_value(H300::decel_time_register, (uint16_t)atoi(value));
+        } 
+        else if (String(datapoint).equals("SET_TIMER")) 
+        {
+          result = device.write_value(H300::set_timer_register, (uint16_t)(atof(value) * 10));
         } 
         else
         {          
@@ -294,6 +387,7 @@ static void resolve_mqtt(String& topic, String& payload)
         else
         {
           const std::string error_msg("Error code: ");
+	  LOG(String("Error code: ") + String(result).c_str());
           mqtt_client->publish_request_result(sequence_number, false, error_msg + String(result).c_str());
         }
 

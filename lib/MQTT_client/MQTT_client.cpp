@@ -84,3 +84,4 @@ MQTT_client::~MQTT_client()
 {
   disconnect();
 }
+

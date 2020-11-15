@@ -2,8 +2,8 @@
 #include <stdint.h>
 #include <Arduino.h>
 
-H300::H300(const std::string device_uuid, const uint8_t unit_id, const uint32_t poll_rate)
-  : device_uuid(device_uuid), unit_id(unit_id), poll_rate(poll_rate)
+H300::H300(const std::string device_id, const uint8_t unit_id, const uint32_t poll_rate)
+  : device_id(device_id), unit_id(unit_id), poll_rate(poll_rate)
 {
   iteration_counter = poll_rate;
   
