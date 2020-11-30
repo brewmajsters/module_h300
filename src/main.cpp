@@ -61,7 +61,15 @@ void setup()
 
   LOG("Module MAC: " + module_mac);
 
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  WiFi.disconnect(true);
+  while (WiFi.status() == WL_CONNECTED)
+    delay(500);
+
+  LOG(String("WiFi status: ") + WiFi.status());
+
+  if (WiFi.status() != WL_CONNECTED)
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+
   while (WiFi.status() != WL_CONNECTED)
     delay(500);
   LOG("Connected to Wi-Fi AP");
@@ -108,6 +116,7 @@ void loop()
   if (!mqtt_client->loop())
   {
     LOG("Lost connection to MQTT broker, reconnecting...");
+    LOG(String("WiFi status: ") + WiFi.status());
     setup();
   }
 
@@ -159,6 +168,10 @@ void loop()
       
       device_object["GET_FREQ"] = get_freq_res;
       LOG(String("\tGET_FREQ:\t") + get_freq_res);
+
+      float rpm_res = (get_freq_res * 60 * 2) / 4;
+      device_object["RPM"] = rpm_res;
+      LOG(String("\tRPM:\t") + rpm_res);
     }
 
     uint16_t set_freq = 0;

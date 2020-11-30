@@ -10,8 +10,8 @@ class H300
 
     static constexpr unsigned long baud_rate = 19200;
     static constexpr HardwareSerial& serial_bus = Serial2;
-    static constexpr uint8_t MAX485_DE = 18;
-    static constexpr uint8_t MAX485_RE_NEG = 5;
+    static constexpr uint8_t MAX485_DE = 19;
+    static constexpr uint8_t MAX485_RE_NEG = 21;
 
     static void pre_transmission();
     static void post_transmission();
