@@ -319,6 +319,10 @@ static void resolve_mqtt(String& topic, String& payload)
       devices.emplace_back(device_id, unit_id, (poll_rate * 1000) / LOOP_DELAY_MS);
     }
 
+    LOG("Switching to active mode");
+    // switch to active mode
+    standby_mode = false;
+    
     LOG(String("Actual device count: ") + devices.size());
 
     // calculate config MD5 chuecksum
